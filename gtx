@@ -1,38 +1,74 @@
 #!/bin/bash
 
+# Gerekli: figlet, lolcat, whois, curl
+# Termux için kurulumu:
+# pkg install figlet lolcat whois curl -y
+
 clear
 figlet "GTX LINKSCAN" | lolcat
 echo -e "\033[36mBu araç GtxAnqel tarafından geliştirilmiştir. Eğitim amaçlıdır.\033[0m"
 echo "────────────────────────────────────────────────────"
 echo ""
 
-read -p "🔗 Analiz etmek istediğiniz URL'yi girin: " url
+function link_kontrol {
+    local url="$1"
 
-echo -e "\n[✓] Bağlantı kontrol ediliyor..."
+    # Basit URL doğrulama (http veya https ile başlamalı)
+    if ! echo "$url" | grep -qE '^https?://'; then
+        echo -e "\033[31m[!] Geçersiz URL formatı. Lütfen 'http://' veya 'https://' ile başlayın.\033[0m"
+        return 1
+    fi
 
-# HTTPS kontrolü
-if echo "$url" | grep -q "^https://"; then
-    echo -e "\033[32m[+] HTTPS kullanılıyor: Güvenli bağlantı\033[0m"
-else
-    echo -e "\033[33m[-] HTTPS kullanılmıyor: Dikkatli olun\033[0m"
-fi
+    echo -e "\n[✓] Bağlantı kontrol ediliyor..."
 
-# Domain WHOIS bilgisi çek (temel alan adı kontrolü)
-domain=$(echo $url | awk -F/ '{print $3}')
-whois_info=$(whois $domain | grep -i "Registrar\|Creation Date" | head -n 2)
+    # HTTPS kontrolü
+    if echo "$url" | grep -q "^https://"; then
+        echo -e "\033[32m[+] HTTPS kullanılıyor: Güvenli bağlantı\033[0m"
+    else
+        echo -e "\033[33m[-] HTTPS kullanılmıyor: Dikkatli olun\033[0m"
+    fi
 
-echo -e "\n[+] Domain bilgisi:"
-echo "$whois_info"
+    # Domain alma
+    domain=$(echo "$url" | awk -F/ '{print $3}')
+    if [[ -z "$domain" ]]; then
+        echo -e "\033[31m[!] Domain bilgisi alınamadı. Lütfen geçerli bir URL girin.\033[0m"
+        return 1
+    fi
 
-# URL çalışıyor mu kontrol et
-httpcode=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+    # Whois bilgisi çekme (hızlıca registrar ve creation date)
+    whois_info=$(whois "$domain" 2>/dev/null | grep -iE "Registrar|Creation Date|Registry Expiry Date" | head -n 3)
 
-if [[ "$httpcode" == "200" ]]; then
-    echo -e "\033[32m[✓] Bağlantı aktif.\033[0m"
-else
-    echo -e "\033[31m[✗] Bağlantı çalışmıyor veya şüpheli ($httpcode).\033[0m"
-fi
+    echo -e "\n[+] Domain bilgisi:"
+    if [[ -n "$whois_info" ]]; then
+        echo "$whois_info"
+    else
+        echo "  Whois bilgisi alınamadı veya erişim engellendi."
+    fi
 
-# Virustotal API Entegrasyonu (isteğe bağlı – ekleyebilirim)
+    # URL HTTP durum kodu kontrolü
+    httpcode=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url")
 
-echo -e "\n\033[36mTarama tamamlandı. Bu sadece temel bir analizdir.\033[0m"
+    if [[ "$httpcode" == "200" ]]; then
+        echo -e "\033[32m[✓] Bağlantı aktif ve erişilebilir.\033[0m"
+    elif [[ "$httpcode" =~ ^3 ]]; then
+        echo -e "\033[33m[!] Bağlantı yönlendiriliyor (HTTP $httpcode).\033[0m"
+    elif [[ "$httpcode" == "000" ]]; then
+        echo -e "\033[31m[✗] Bağlantıya ulaşılamadı. Zaman aşımı veya DNS hatası.\033[0m"
+    else
+        echo -e "\033[31m[✗] Bağlantı sorunlu (HTTP $httpcode).\033[0m"
+    fi
+
+    echo -e "\n\033[36mTarama tamamlandı. Bu sadece temel bir analizdir.\033[0m"
+    echo "────────────────────────────────────────────────────"
+}
+
+while true; do
+    read -p "🔗 Analiz etmek istediğiniz URL'yi girin (Çıkmak için 'q' yazın): " url
+
+    if [[ "$url" == "q" || "$url" == "Q" ]]; then
+        echo -e "\n\033[36mÇıkış yapılıyor. İyi günler!\033[0m"
+        exit 0
+    fi
+
+    link_kontrol "$url"
+done
