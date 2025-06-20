@@ -1,0 +1,133 @@
+import requests
+import os
+import json
+import time
+
+# Renkler için basit (Termux ve Windows uyumlu)
+class color:
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    CYAN = '\033[96m'
+    END = '\033[0m'
+
+# Kullanıcı adı araması yapılacak 50+ site (örnek liste)
+sites = {
+    "GitHub": "https://github.com/{}",
+    "Instagram": "https://www.instagram.com/{}",
+    "Twitter": "https://twitter.com/{}",
+    "Reddit": "https://www.reddit.com/user/{}",
+    "TikTok": "https://www.tiktok.com/@{}",
+    "YouTube": "https://www.youtube.com/{}",
+    "Facebook": "https://www.facebook.com/{}",
+    "Medium": "https://medium.com/@{}",
+    "Pinterest": "https://www.pinterest.com/{}",
+    "Steam": "https://steamcommunity.com/id/{}",
+    "Tumblr": "https://{}.tumblr.com",
+    "Twitch": "https://www.twitch.tv/{}",
+    "Spotify": "https://open.spotify.com/user/{}",
+    "Flickr": "https://www.flickr.com/people/{}",
+    "Disqus": "https://disqus.com/by/{}",
+    "Vimeo": "https://vimeo.com/{}",
+    "DeviantArt": "https://www.deviantart.com/{}",
+    "Goodreads": "https://www.goodreads.com/{}",
+    "SoundCloud": "https://soundcloud.com/{}",
+    "Wordpress": "https://{}.wordpress.com",
+    # ... listeye istediğin kadar ekleyebilirsin
+}
+
+# Taranan kullanıcılar kaydedilecek dosya
+data_file = "user_scan_results.json"
+
+def clear_screen():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+def save_result(username, results):
+    try:
+        if os.path.exists(data_file):
+            with open(data_file, 'r') as f:
+                data = json.load(f)
+        else:
+            data = {}
+
+        data[username] = results
+
+        with open(data_file, 'w') as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        print(color.RED + f"Kaydetme hatası: {e}" + color.END)
+
+def load_results():
+    if os.path.exists(data_file):
+        with open(data_file, 'r') as f:
+            return json.load(f)
+    return {}
+
+def check_user_on_site(username, site_name, url_pattern):
+    url = url_pattern.format(username)
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            return url
+    except requests.RequestException:
+        pass
+    return None
+
+def user_search(username):
+    clear_screen()
+    print(color.CYAN + f"Kullanıcı adı taranıyor: {username}\n" + color.END)
+    found_sites = {}
+    for site, url_pattern in sites.items():
+        print(f"Taranıyor: {site}...", end='')
+        result = check_user_on_site(username, site, url_pattern)
+        if result:
+            print(color.GREEN + " Bulundu!" + color.END)
+            found_sites[site] = result
+        else:
+            print(color.RED + " Bulunamadı." + color.END)
+        time.sleep(0.5)  # Çok hızlı gitmesin diye
+    print("\nTaramalar tamamlandı.")
+    save_result(username, found_sites)
+    input("\nDevam etmek için Enter'a bas...")
+
+def show_user_results(username):
+    clear_screen()
+    data = load_results()
+    if username not in data:
+        print(color.YELLOW + f"{username} için kayıtlı sonuç bulunamadı." + color.END)
+    else:
+        print(color.CYAN + f"{username} için bulunan hesaplar:\n" + color.END)
+        for site, url in data[username].items():
+            print(f"{color.GREEN}{site}: {color.END}{url}")
+    print("\nMenüye dönmek için M yazıp Enter'a basınız.")
+    while True:
+        choice = input(">>> ").strip().upper()
+        if choice == 'M':
+            break
+
+def main_menu():
+    while True:
+        clear_screen()
+        print(color.CYAN + "=== WhiteScan Menü ===" + color.END)
+        print("1) Kullanıcı Adı Tara")
+        print("2) Kayıtlı Sonuçları Göster")
+        print("3) Çıkış")
+        choice = input("\nSeçiminiz: ").strip()
+        if choice == '1':
+            username = input("Taranacak kullanıcı adını girin: ").strip()
+            if username:
+                user_search(username)
+        elif choice == '2':
+            username = input("Sonuçlarını görmek istediğiniz kullanıcı adını girin: ").strip()
+            if username:
+                show_user_results(username)
+        elif choice == '3':
+            print(color.YELLOW + "Çıkış yapılıyor..." + color.END)
+            time.sleep(1)
+            break
+        else:
+            print(color.RED + "Geçersiz seçim! Tekrar deneyin." + color.END)
+            time.sleep(1)
+
+if __name__ == "__main__":
+    main_menu()
