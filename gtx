@@ -90,24 +90,7 @@ def usercan():
 
 def sitecheck():
     temizle()
-    url = input("🌐 Site URL gir (https://...): ").strip()
-    if not url.startswith("http"): return
-    try:
-        ip = socket.gethostbyname(url.split("//")[1].split("/")[0])
-        print(Renk.MAVİ + f"\n🔎 IP adresi: {ip}" + Renk.BİTİR)
-        r = requests.get(url, timeout=5)
-        print(f"HTTP Durum Kodu: {r.status_code}")
-        print("➡️ Header Bilgileri:")
-        for k,v in r.headers.items():
-            print(f"   {k}: {v}")
-        if "?id=" in url or "?page=" in url or "?q=" in url:
-            print(Renk.SARI + "\n⚠️ Potansiyel SQL/XSS açığı olabilecek parametre bulundu." + Renk.BİTİR)
-    except Exception as e:
-        print(Renk.KIRMIZI + f"HATA: {e}" + Renk.BİTİR)
-    input("\n↩️ Menüye dönmek için Enter...")
-
-def ipanaliz():
-    temizle()
+    
     ip = input("📡 IP adresi gir: ").strip()
     try:
         veri = requests.get(f"http://ip-api.com/json/{ip}").json()
@@ -121,7 +104,77 @@ def ipanaliz():
     except:
         print(Renk.KIRMIZI + "Hata oluştu." + Renk.BİTİR)
     input("\n↩️ Menüye dönmek için Enter...")
+import requests
 
+def header_analiz(url):
+    print(f"\n🔎 {url} adresine istek gönderiliyor...\n")
+    try:
+        r = requests.get(url, timeout=7)
+        headers = r.headers
+
+        print("➡️ Header Bilgileri:")
+        for k, v in headers.items():
+            print(f"  {k}: {v}")
+
+        print("\n⚠️ Güvenlik Kontrolü:")
+
+        # Content-Security-Policy kontrolü
+        csp = headers.get("Content-Security-Policy")
+        if csp:
+            print("✅ Content-Security-Policy var.")
+        else:
+            print("❌ Content-Security-Policy (CSP) bulunamadı! XSS açığı riski olabilir.")
+
+        # X-XSS-Protection kontrolü
+        x_xss = headers.get("X-XSS-Protection")
+        if x_xss == "0":
+            print("⚠️ X-XSS-Protection devre dışı bırakılmış (0). Güvenlik riskli olabilir.")
+        elif x_xss:
+            print(f"✅ X-XSS-Protection: {x_xss}")
+        else:
+            print("❌ X-XSS-Protection header'ı yok. XSS savunması zayıf olabilir.")
+
+        # Set-Cookie HttpOnly ve Secure kontrolü (kısmi kontrol)
+        set_cookie = headers.get("Set-Cookie")
+        if set_cookie:
+            if "HttpOnly" in set_cookie and "Secure" in set_cookie:
+                print("✅ Set-Cookie'da HttpOnly ve Secure var.")
+            else:
+                print("⚠️ Set-Cookie'da HttpOnly veya Secure eksik olabilir.")
+        else:
+            print("❌ Set-Cookie header'ı yok. Çerez güvenliği sorgulanmalı.")
+
+        # Server bilgisi (versiyon bilgisi kontrolü)
+        server = headers.get("Server")
+        if server:
+            if any(c in server.lower() for c in ["apache", "nginx", "iis", "tomcat"]):
+                print(f"⚠️ Server bilgisi açık: {server}. Versiyon bilgisi olabilir, bu risk oluşturabilir.")
+            else:
+                print(f"✅ Server bilgisi maskelenmiş veya özel: {server}")
+        else:
+            print("✅ Server header'ı yok, iyi.")
+
+        # Referrer-Policy kontrolü
+        ref_policy = headers.get("Referrer-Policy")
+        if ref_policy:
+            print(f"✅ Referrer-Policy: {ref_policy}")
+        else:
+            print("⚠️ Referrer-Policy yok. Veri sızıntısı riski olabilir.")
+
+        # HSTS kontrolü
+        hsts = headers.get("Strict-Transport-Security")
+        if hsts:
+            print(f"✅ HSTS aktif: {hsts}")
+        else:
+            print("⚠️ HSTS yok! HTTPS kullanımı tam güvenli olmayabilir.")
+
+        print("\n🔚 Analiz tamamlandı.\n")
+
+    except Exception as e:
+        print(f"❌ Hata oluştu: {e}")
+
+# Örnek kullanım:
+# header_analiz("https://www.google.com")
 def menu():
     while True:
         temizle()
